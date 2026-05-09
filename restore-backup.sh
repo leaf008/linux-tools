@@ -1,4 +1,3 @@
-```bash id="6v1xmq"
 #!/bin/bash
 
 GREEN='\033[0;32m'
