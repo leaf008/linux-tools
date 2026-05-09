@@ -1,33 +1,71 @@
 #!/bin/bash
 
-clear
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
 
-echo "================================"
-echo " WordPress 安全检测工具"
-echo "================================"
+select_site() {
 
-read -p "请输入WordPress目录: " SITE
+SITES=($(find /www/wwwroot -maxdepth 1 -type d | grep -v "^/www/wwwroot$"))
+
+echo ""
+echo "检测到以下网站："
+echo ""
+
+INDEX=1
+
+for site in "${SITES[@]}"
+do
+
+DOMAIN=$(basename $site)
+
+echo "$INDEX. $DOMAIN"
+
+INDEX=$((INDEX+1))
+
+done
+
+echo ""
+
+read -p "请选择网站编号: " NUM
+
+SITE=${SITES[$((NUM-1))]}
 
 if [ ! -d "$SITE" ]; then
-    echo "目录不存在"
-    exit
+
+echo "网站不存在"
+
+exit
+
 fi
 
-echo ""
-echo "[1] 检测 uploads PHP文件"
-find "$SITE/wp-content/uploads" -name "*.php" 2>/dev/null
+DOMAIN=$(basename $SITE)
+
+}
+
+clear
+
+echo "================================================"
+echo " WordPress 安全检测工具"
+echo "================================================"
+
+select_site
 
 echo ""
-echo "[2] 检测危险函数"
-find "$SITE" -name "*.php" | xargs grep -lE 'eval\(|base64_decode|shell_exec|assert\('
+echo "[1] 检测管理员"
+
+find "$SITE/wp-content" -name "*.php"
 
 echo ""
-echo "[3] 检测管理员账号"
-grep "DB_USER" "$SITE/wp-config.php"
+echo "[2] 检测木马"
+
+find "$SITE" -name "*.php" | xargs grep -lE 'eval\(|assert\('
 
 echo ""
-echo "[4] 检测777权限"
-find "$SITE" -type f -perm 777
+echo "[3] 检测上传目录"
+
+find "$SITE/wp-content/uploads" -name "*.php"
 
 echo ""
 echo "检测完成"
