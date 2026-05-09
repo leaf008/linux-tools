@@ -12,7 +12,7 @@ clear
 
 echo -e "${GREEN}"
 echo "================================================"
-echo " Linux Tools 企业级安全工具箱 v1.0"
+echo " Linux Tools 企业级安全工具箱 v2.0"
 echo "================================================"
 echo -e "${NC}"
 
@@ -22,7 +22,8 @@ echo " 3. 宝塔安全修复"
 echo " 4. Nginx修复"
 echo " 5. PHP安全加固"
 echo " 6. 网站巡检"
-echo " 7. 网站备份恢复"
+echo " 7. 网站备份"
+echo " 8. 网站恢复"
 echo " 0. 退出"
 echo ""
 
@@ -105,7 +106,19 @@ read -p "按回车返回菜单..."
 7)
 
 echo ""
-echo -e "${YELLOW}启动 网站备份恢复...${NC}"
+echo -e "${YELLOW}启动 网站备份...${NC}"
+echo ""
+
+bash <(curl -fsSL https://raw.githubusercontent.com/leaf008/linux-tools/main/backup-site.sh)
+
+read -p "按回车返回菜单..."
+
+;;
+
+8)
+
+echo ""
+echo -e "${YELLOW}启动 网站恢复...${NC}"
 echo ""
 
 bash <(curl -fsSL https://raw.githubusercontent.com/leaf008/linux-tools/main/restore-backup.sh)
