@@ -1,13 +1,9 @@
 #!/bin/bash
 
-clear
-
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 NC='\033[0m'
 
 while true
-
 do
 
 clear
@@ -59,4 +55,17 @@ read -p "按回车继续..."
 6)
 bash <(curl -fsSL https://raw.githubusercontent.com/leaf008/linux-tools/main/site-check.sh)
 read -p "按回车继续..."
+;;
+
+0)
+exit
+;;
+
+*)
+echo "输入错误"
+read -p "按回车继续..."
+;;
+
+esac
+
 done
