@@ -8,10 +8,11 @@ NC='\033[0m'
 clear
 
 echo -e "${GREEN}================================================${NC}"
-echo -e "${GREEN} Linux Tools 网站一键恢复工具 v1.0${NC}"
+echo -e "${GREEN} Linux Tools 网站恢复工具 v1.0${NC}"
 echo -e "${GREEN}================================================${NC}"
 
 echo ""
+
 read -p "请输入网站目录: " SITE
 
 if [ ! -d "$SITE" ]; then
@@ -24,6 +25,7 @@ echo -e "${YELLOW}[1] 当前网站目录:${NC}"
 echo "$SITE"
 
 echo ""
+
 read -p "请输入备份文件路径(.tar.gz): " BACKUP
 
 if [ ! -f "$BACKUP" ]; then
@@ -75,4 +77,23 @@ if [ -f "/etc/init.d/php-fpm-$version" ]; then
 
 /etc/init.d/php-fpm-$version restart
 
+echo "PHP $version 已重启"
+
+fi
+
+done
+
+echo ""
+echo -e "${GREEN}================================================${NC}"
+echo -e "${GREEN} 网站恢复完成${NC}"
+echo -e "${GREEN}================================================${NC}"
+
+echo ""
+echo "已完成："
+echo ""
+echo "1. 自动备份当前网站"
+echo "2. 自动恢复网站文件"
+echo "3. 自动修复权限"
+echo "4. 自动重载Nginx"
+echo "5. 自动重启PHP"
 echo ""
