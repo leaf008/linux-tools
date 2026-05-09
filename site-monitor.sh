@@ -7,7 +7,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 BASE_DIR="/opt/linux-tools/monitor"
-CONFIG_FILE="$BASE_DIR/telegram.conf"
+CONFIG_FILE="$BASE_DIR/notify.conf"
 SITE_FILE="$BASE_DIR/sites.txt"
 STATE_FILE="$BASE_DIR/state.txt"
 LOG_FILE="$BASE_DIR/monitor.log"
@@ -20,21 +20,54 @@ mkdir -p "$BASE_DIR"
 send_tg() {
     MSG="$1"
 
-    if [ ! -f "$CONFIG_FILE" ]; then
-        echo "Telegram 未配置"
+    source "$CONFIG_FILE" 2>/dev/null
+
+    if [ -z "$TG_BOT_TOKEN" ] || [ -z "$TG_CHAT_ID" ]; then
         return
     fi
 
-    source "$CONFIG_FILE"
-
-    if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
-        echo "Telegram Token 或 Chat ID 为空"
-        return
-    fi
-
-    curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-        -d chat_id="${CHAT_ID}" \
+    curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+        -d chat_id="${TG_CHAT_ID}" \
         --data-urlencode text="$MSG" >/dev/null 2>&1
+}
+
+send_bark() {
+    TITLE="$1"
+    MSG="$2"
+
+    source "$CONFIG_FILE" 2>/dev/null
+
+    if [ -z "$BARK_KEY" ]; then
+        return
+    fi
+
+    BARK_SERVER="${BARK_SERVER:-https://api.day.app}"
+
+    curl -s -G "${BARK_SERVER}/${BARK_KEY}/${TITLE}/${MSG}" \
+        --data-urlencode "group=LinuxTools" \
+        --data-urlencode "sound=alarm" >/dev/null 2>&1
+}
+
+send_notify() {
+    TITLE="$1"
+    MSG="$2"
+
+    source "$CONFIG_FILE" 2>/dev/null
+
+    if [ "$NOTICE_TYPE" = "telegram" ]; then
+        send_tg "$TITLE
+
+$MSG"
+    elif [ "$NOTICE_TYPE" = "bark" ]; then
+        send_bark "$TITLE" "$MSG"
+    elif [ "$NOTICE_TYPE" = "both" ]; then
+        send_tg "$TITLE
+
+$MSG"
+        send_bark "$TITLE" "$MSG"
+    else
+        send_bark "$TITLE" "$MSG"
+    fi
 }
 
 get_status() {
@@ -121,9 +154,7 @@ run_monitor() {
             echo "$NOW_TIME OK $URL HTTP:$CODE" >> "$LOG_FILE"
 
             if [ "$OLD_STATE" = "DOWN" ]; then
-                send_tg "✅ 网站已恢复正常
-
-网站：$URL
+                send_notify "✅ 网站恢复正常" "网站：$URL
 状态码：$CODE
 时间：$NOW_TIME"
             fi
@@ -134,13 +165,11 @@ run_monitor() {
             echo "$NOW_TIME DOWN $URL HTTP:$CODE" >> "$LOG_FILE"
 
             if [ "$OLD_STATE" != "DOWN" ]; then
-                send_tg "🚨 网站访问异常
-
-网站：$URL
+                send_notify "🚨 网站访问异常" "网站：$URL
 状态码：$CODE
 时间：$NOW_TIME
 
-请登录服务器检查 Nginx / PHP / 网站日志。"
+请检查 Nginx / PHP / 网站日志。"
             fi
 
             set_state "$URL" "DOWN"
@@ -196,25 +225,106 @@ select_site_url() {
     echo -e "${GREEN}已添加监控：$URL${NC}"
 }
 
+config_bark() {
+    echo ""
+    echo -e "${YELLOW}Bark 配置${NC}"
+    echo ""
+
+    read -p "请输入 Bark Key: " BARK_KEY
+
+    read -p "请输入 Bark 服务地址，默认 https://api.day.app: " BARK_SERVER
+
+    if [ -z "$BARK_SERVER" ]; then
+        BARK_SERVER="https://api.day.app"
+    fi
+
+    touch "$CONFIG_FILE"
+
+    sed -i '/^BARK_KEY=/d' "$CONFIG_FILE"
+    sed -i '/^BARK_SERVER=/d' "$CONFIG_FILE"
+    sed -i '/^NOTICE_TYPE=/d' "$CONFIG_FILE"
+
+    echo "BARK_KEY=\"$BARK_KEY\"" >> "$CONFIG_FILE"
+    echo "BARK_SERVER=\"$BARK_SERVER\"" >> "$CONFIG_FILE"
+    echo "NOTICE_TYPE=\"bark\"" >> "$CONFIG_FILE"
+
+    echo ""
+    echo -e "${GREEN}Bark 配置已保存${NC}"
+}
+
 config_telegram() {
     echo ""
-    read -p "请输入 Telegram Bot Token: " BOT_TOKEN
-    read -p "请输入 Telegram Chat ID: " CHAT_ID
+    echo -e "${YELLOW}Telegram 配置${NC}"
+    echo ""
 
-    cat > "$CONFIG_FILE" << EOF
-BOT_TOKEN="$BOT_TOKEN"
-CHAT_ID="$CHAT_ID"
-EOF
+    read -p "请输入 Telegram Bot Token: " TG_BOT_TOKEN
+    read -p "请输入 Telegram Chat ID: " TG_CHAT_ID
+
+    touch "$CONFIG_FILE"
+
+    sed -i '/^TG_BOT_TOKEN=/d' "$CONFIG_FILE"
+    sed -i '/^TG_CHAT_ID=/d' "$CONFIG_FILE"
+    sed -i '/^NOTICE_TYPE=/d' "$CONFIG_FILE"
+
+    echo "TG_BOT_TOKEN=\"$TG_BOT_TOKEN\"" >> "$CONFIG_FILE"
+    echo "TG_CHAT_ID=\"$TG_CHAT_ID\"" >> "$CONFIG_FILE"
+    echo "NOTICE_TYPE=\"telegram\"" >> "$CONFIG_FILE"
 
     echo ""
     echo -e "${GREEN}Telegram 配置已保存${NC}"
 }
 
-test_telegram() {
-    send_tg "✅ Linux Tools 测试消息
+set_notice_type() {
+    clear
 
-Telegram 告警配置成功。"
-    echo -e "${GREEN}测试消息已发送，请查看 Telegram${NC}"
+    echo -e "${GREEN}"
+    echo "================================================"
+    echo " 设置通知方式"
+    echo "================================================"
+    echo -e "${NC}"
+
+    echo " 1. Bark 通知"
+    echo " 2. Telegram 通知"
+    echo " 3. Bark + Telegram 同时通知"
+    echo " 0. 返回"
+    echo ""
+
+    read -p "请选择通知方式: " NUM
+
+    touch "$CONFIG_FILE"
+
+    sed -i '/^NOTICE_TYPE=/d' "$CONFIG_FILE"
+
+    case "$NUM" in
+        1)
+            echo 'NOTICE_TYPE="bark"' >> "$CONFIG_FILE"
+            echo -e "${GREEN}已设置为 Bark 通知${NC}"
+            ;;
+        2)
+            echo 'NOTICE_TYPE="telegram"' >> "$CONFIG_FILE"
+            echo -e "${GREEN}已设置为 Telegram 通知${NC}"
+            ;;
+        3)
+            echo 'NOTICE_TYPE="both"' >> "$CONFIG_FILE"
+            echo -e "${GREEN}已设置为 Bark + Telegram 同时通知${NC}"
+            ;;
+        0)
+            return
+            ;;
+        *)
+            echo -e "${RED}输入错误${NC}"
+            ;;
+    esac
+}
+
+test_notify() {
+    NOW_TIME=$(date '+%F %T')
+
+    send_notify "✅ Linux Tools 测试通知" "网站监控告警配置成功。
+
+时间：$NOW_TIME"
+
+    echo -e "${GREEN}测试通知已发送，请查看手机/Telegram${NC}"
 }
 
 show_sites() {
@@ -403,9 +513,23 @@ show_current_config() {
     echo ""
 
     if [ -f "$CONFIG_FILE" ]; then
-        echo -e "${GREEN}Telegram：已配置${NC}"
+        source "$CONFIG_FILE" 2>/dev/null
+
+        echo "通知方式：${NOTICE_TYPE:-bark}"
+
+        if [ -n "$BARK_KEY" ]; then
+            echo -e "${GREEN}Bark：已配置${NC}"
+        else
+            echo -e "${RED}Bark：未配置${NC}"
+        fi
+
+        if [ -n "$TG_BOT_TOKEN" ]; then
+            echo -e "${GREEN}Telegram：已配置${NC}"
+        else
+            echo -e "${RED}Telegram：未配置${NC}"
+        fi
     else
-        echo -e "${RED}Telegram：未配置${NC}"
+        echo -e "${RED}通知配置：未配置${NC}"
     fi
 
     echo ""
@@ -424,7 +548,7 @@ do
 
     echo -e "${GREEN}"
     echo "================================================"
-    echo " Linux Tools 网站实时监控TG告警 v1.1"
+    echo " Linux Tools 网站实时监控告警 v1.2"
     echo "================================================"
     echo -e "${NC}"
 
@@ -436,14 +560,16 @@ do
     echo " 1. 添加监控网站"
     echo " 2. 查看监控网站"
     echo " 3. 删除监控网站"
-    echo " 4. 配置 Telegram"
-    echo " 5. 测试 Telegram 消息"
-    echo " 6. 手动检测网站状态"
-    echo " 7. 设置检测间隔时间"
-    echo " 8. 安装/更新定时监控任务"
-    echo " 9. 删除定时监控任务"
-    echo "10. 查看监控日志"
-    echo "11. 查看当前配置"
+    echo " 4. 配置 Bark 通知"
+    echo " 5. 配置 Telegram 通知"
+    echo " 6. 设置通知方式"
+    echo " 7. 测试通知"
+    echo " 8. 手动检测网站状态"
+    echo " 9. 设置检测间隔时间"
+    echo "10. 安装/更新定时监控任务"
+    echo "11. 删除定时监控任务"
+    echo "12. 查看监控日志"
+    echo "13. 查看当前配置"
     echo " 0. 返回主菜单"
     echo ""
 
@@ -467,41 +593,51 @@ do
         ;;
 
     4)
-        config_telegram
+        config_bark
         read -p "按回车继续..."
         ;;
 
     5)
-        test_telegram
+        config_telegram
         read -p "按回车继续..."
         ;;
 
     6)
-        manual_test
+        set_notice_type
         read -p "按回车继续..."
         ;;
 
     7)
-        set_interval
+        test_notify
         read -p "按回车继续..."
         ;;
 
     8)
-        install_cron
+        manual_test
         read -p "按回车继续..."
         ;;
 
     9)
-        remove_cron
+        set_interval
         read -p "按回车继续..."
         ;;
 
     10)
-        show_log
+        install_cron
         read -p "按回车继续..."
         ;;
 
     11)
+        remove_cron
+        read -p "按回车继续..."
+        ;;
+
+    12)
+        show_log
+        read -p "按回车继续..."
+        ;;
+
+    13)
         show_current_config
         read -p "按回车继续..."
         ;;
