@@ -25,6 +25,7 @@ echo " 6. 网站巡检"
 echo " 7. 网站备份"
 echo " 8. 网站恢复"
 echo " 9. 网站故障修复"
+echo "10. 高频扫描IP封禁"
 echo " 0. 退出"
 echo ""
 
@@ -74,6 +75,11 @@ read -p "按回车返回菜单..."
 
 9)
 bash <(curl -fsSL https://raw.githubusercontent.com/leaf008/linux-tools/main/site-fix.sh)
+read -p "按回车返回菜单..."
+;;
+
+10)
+bash <(curl -fsSL https://raw.githubusercontent.com/leaf008/linux-tools/main/ip-ban.sh)
 read -p "按回车返回菜单..."
 ;;
 
