@@ -26,7 +26,7 @@ echo " 7. 网站备份"
 echo " 8. 网站恢复"
 echo " 9. 网站故障修复"
 echo "10. 高频扫描IP封禁"
-echo "11. 网站实时监控TG告警"
+echo "11. 网站实时监控告警"
 echo " 0. 退出"
 echo ""
 
@@ -90,11 +90,16 @@ read -p "按回车返回菜单..."
 ;;
 
 0)
+echo ""
+echo -e "${RED}退出工具箱${NC}"
+echo ""
 exit 0
 ;;
 
 *)
-echo "输入错误"
+echo ""
+echo -e "${RED}输入错误${NC}"
+echo ""
 sleep 1
 ;;
 
