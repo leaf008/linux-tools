@@ -9,7 +9,7 @@ clear
 
 echo -e "${GREEN}"
 echo "================================================"
-echo " Linux Tools 网站恢复工具 v2.1"
+echo " Linux Tools 网站恢复工具 v2.2"
 echo "================================================"
 echo -e "${NC}"
 
@@ -17,14 +17,18 @@ BACKUP_DIR="/www/backup/site"
 
 if [ ! -d "$BACKUP_DIR" ]; then
     echo -e "${RED}备份目录不存在：$BACKUP_DIR${NC}"
-    exit 1
+    echo ""
+    read -p "按回车返回主菜单..."
+    exit 0
 fi
 
 FILES=($(find "$BACKUP_DIR" -name "*.tar.gz" | sort -r))
 
 if [ ${#FILES[@]} -eq 0 ]; then
     echo -e "${RED}没有检测到备份文件${NC}"
-    exit 1
+    echo ""
+    read -p "按回车返回主菜单..."
+    exit 0
 fi
 
 echo ""
@@ -41,16 +45,37 @@ do
     INDEX=$((INDEX+1))
 done
 
+echo "0. 返回主菜单"
 echo ""
 
 read -p "请选择备份编号: " BACKUP_NUM
 
+if [ "$BACKUP_NUM" = "0" ]; then
+    echo ""
+    echo "返回主菜单..."
+    exit 0
+fi
+
 BACKUP_FILE=${FILES[$((BACKUP_NUM-1))]}
 
 if [ ! -f "$BACKUP_FILE" ]; then
-    echo -e "${RED}备份文件不存在${NC}"
-    exit 1
+    echo -e "${RED}备份文件不存在或编号错误${NC}"
+    echo ""
+    read -p "按回车返回主菜单..."
+    exit 0
 fi
+
+clear
+
+echo -e "${GREEN}"
+echo "================================================"
+echo " Linux Tools 网站恢复工具 v2.2"
+echo "================================================"
+echo -e "${NC}"
+
+echo ""
+echo -e "${YELLOW}当前选择的备份：${NC}"
+echo "$BACKUP_FILE"
 
 echo ""
 echo -e "${YELLOW}检测到以下网站：${NC}"
@@ -67,15 +92,24 @@ do
     INDEX=$((INDEX+1))
 done
 
+echo "0. 返回主菜单"
 echo ""
 
 read -p "请选择恢复网站编号: " SITE_NUM
 
+if [ "$SITE_NUM" = "0" ]; then
+    echo ""
+    echo "返回主菜单..."
+    exit 0
+fi
+
 SITE=${SITES[$((SITE_NUM-1))]}
 
 if [ ! -d "$SITE" ]; then
-    echo -e "${RED}网站不存在${NC}"
-    exit 1
+    echo -e "${RED}网站不存在或编号错误${NC}"
+    echo ""
+    read -p "按回车返回主菜单..."
+    exit 0
 fi
 
 DOMAIN=$(basename "$SITE")
@@ -84,11 +118,14 @@ echo ""
 echo -e "${RED}警告：即将恢复网站：$DOMAIN${NC}"
 echo -e "${YELLOW}备份文件：$BACKUP_FILE${NC}"
 echo ""
+echo -e "${RED}这个操作会覆盖当前网站文件。${NC}"
+echo ""
 
-read -p "确认恢复？输入 yes 继续: " CONFIRM
+read -p "确认恢复？输入 yes 继续，输入其他内容返回主菜单: " CONFIRM
 
 if [ "$CONFIRM" != "yes" ]; then
-    echo "已取消"
+    echo ""
+    echo "已取消，返回主菜单..."
     exit 0
 fi
 
@@ -121,7 +158,9 @@ tar -xzf "$BACKUP_FILE" -C "$SITE"
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}恢复失败，请检查备份包格式${NC}"
-    exit 1
+    echo ""
+    read -p "按回车返回主菜单..."
+    exit 0
 fi
 
 echo ""
@@ -155,3 +194,6 @@ echo -e "${GREEN}================================================${NC}"
 echo -e "${GREEN} 网站恢复完成${NC}"
 echo -e "${GREEN}================================================${NC}"
 echo ""
+
+read -p "按回车返回主菜单..."
+exit 0
