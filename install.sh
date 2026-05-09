@@ -26,6 +26,7 @@ echo " 7. 网站备份"
 echo " 8. 网站恢复"
 echo " 9. 网站故障修复"
 echo "10. 高频扫描IP封禁"
+echo "11. 网站实时监控TG告警"
 echo " 0. 退出"
 echo ""
 
@@ -80,6 +81,11 @@ read -p "按回车返回菜单..."
 
 10)
 bash <(curl -fsSL https://raw.githubusercontent.com/leaf008/linux-tools/main/ip-ban.sh)
+read -p "按回车返回菜单..."
+;;
+
+11)
+bash <(curl -fsSL https://raw.githubusercontent.com/leaf008/linux-tools/main/site-monitor.sh)
 read -p "按回车返回菜单..."
 ;;
 
