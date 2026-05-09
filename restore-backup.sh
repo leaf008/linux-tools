@@ -1,48 +1,10 @@
+```bash id="6v1xmq"
 #!/bin/bash
 
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
-
-select_site() {
-
-SITES=($(find /www/wwwroot -maxdepth 1 -type d | grep -v "^/www/wwwroot$"))
-
-echo ""
-echo -e "${YELLOW}检测到以下网站:${NC}"
-echo ""
-
-INDEX=1
-
-for site in "${SITES[@]}"
-do
-
-DOMAIN=$(basename $site)
-
-echo "$INDEX. $DOMAIN"
-
-INDEX=$((INDEX+1))
-
-done
-
-echo ""
-
-read -p "请选择网站编号: " NUM
-
-SITE=${SITES[$((NUM-1))]}
-
-if [ ! -d "$SITE" ]; then
-
-echo -e "${RED}网站不存在${NC}"
-
-exit
-
-fi
-
-DOMAIN=$(basename $SITE)
-
-}
 
 clear
 
@@ -52,75 +14,105 @@ echo " Linux Tools 网站恢复工具 v2.0"
 echo "================================================"
 echo -e "${NC}"
 
-select_site
+BACKUP_DIR="/www/backup/site"
 
-echo ""
-echo -e "${YELLOW}[1] 当前网站:${NC}"
-echo "$DOMAIN"
+FILES=($(find $BACKUP_DIR -name "*.tar.gz"))
 
-echo ""
+if [ ${#FILES[@]} -eq 0 ]; then
 
-read -p "请输入备份文件路径(.tar.gz): " BACKUP
+    echo -e "${RED}没有检测到备份文件${NC}"
 
-if [ ! -f "$BACKUP" ]; then
-
-echo -e "${RED}备份文件不存在${NC}"
-
-exit
+    exit
 
 fi
 
 echo ""
-echo -e "${YELLOW}[2] 自动备份当前网站${NC}"
-
-NOW_BACKUP="/root/website_backup_$(date +%F_%H%M%S).tar.gz"
-
-tar -czf "$NOW_BACKUP" "$SITE"
-
+echo "检测到以下备份："
 echo ""
-echo "当前网站已备份:"
-echo "$NOW_BACKUP"
 
-echo ""
-echo -e "${YELLOW}[3] 开始恢复网站${NC}"
+INDEX=1
 
-rm -rf ${SITE:?}/*
-
-tar -xzf "$BACKUP" -C "$SITE" --strip-components=1
-
-echo ""
-echo -e "${GREEN}网站文件恢复完成${NC}"
-
-echo ""
-echo -e "${YELLOW}[4] 修复权限${NC}"
-
-chown -R www:www "$SITE"
-
-find "$SITE" -type d -exec chmod 755 {} \;
-find "$SITE" -type f -exec chmod 644 {} \;
-
-echo ""
-echo -e "${YELLOW}[5] 重载Nginx${NC}"
-
-systemctl reload nginx
-
-echo ""
-echo -e "${YELLOW}[6] 重启PHP${NC}"
-
-for version in $(ls /www/server/php/ | grep -E '^[0-9]+$')
+for file in "${FILES[@]}"
 do
 
-if [ -f "/etc/init.d/php-fpm-$version" ]; then
+    NAME=$(basename $file)
 
-/etc/init.d/php-fpm-$version restart
+    SIZE=$(du -sh $file | awk '{print $1}')
 
-echo "PHP $version 已重启"
+    echo "$INDEX. $NAME [$SIZE]"
 
-fi
+    INDEX=$((INDEX+1))
 
 done
 
 echo ""
-echo -e "${GREEN}================================================${NC}"
-echo -e "${GREEN} 网站恢复完成${NC}"
-echo -e "${GREEN}================================================${NC}"
+
+read -p "请选择备份编号: " NUM
+
+BACKUP_FILE=${FILES[$((NUM-1))]}
+
+if [ ! -f "$BACKUP_FILE" ]; then
+
+    echo -e "${RED}备份不存在${NC}"
+
+    exit
+
+fi
+
+echo ""
+echo "检测网站目录..."
+echo ""
+
+SITES=($(find /www/wwwroot -maxdepth 1 -type d | grep -v "^/www/wwwroot$"))
+
+INDEX=1
+
+for site in "${SITES[@]}"
+do
+
+    DOMAIN=$(basename $site)
+
+    echo "$INDEX. $DOMAIN"
+
+    INDEX=$((INDEX+1))
+
+done
+
+echo ""
+
+read -p "请选择恢复网站编号: " NUM
+
+SITE=${SITES[$((NUM-1))]}
+
+if [ ! -d "$SITE" ]; then
+
+    echo -e "${RED}网站不存在${NC}"
+
+    exit
+
+fi
+
+DOMAIN=$(basename $SITE)
+
+echo ""
+echo -e "${YELLOW}开始恢复网站:${NC}"
+echo "$DOMAIN"
+
+echo ""
+
+mkdir -p /www/backup/restore_before
+
+tar -czf /www/backup/restore_before/${DOMAIN}_before_restore_$(date +%F_%H%M%S).tar.gz $SITE
+
+rm -rf ${SITE:?}/*
+
+tar -xzf $BACKUP_FILE -C /
+
+chown -R www:www $SITE
+
+echo ""
+
+echo -e "${GREEN}恢复成功${NC}"
+
+echo ""
+```
