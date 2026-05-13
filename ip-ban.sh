@@ -157,6 +157,24 @@ extract_public_ips_from_line() {
     done
 }
 
+filter_public_ipv4() {
+    awk -F. '
+        NF == 4 &&
+        $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ &&
+        $1 >= 0 && $1 <= 255 && $2 >= 0 && $2 <= 255 && $3 >= 0 && $3 <= 255 && $4 >= 0 && $4 <= 255 &&
+        $1 != 0 &&
+        $1 != 10 &&
+        $1 != 127 &&
+        !($1 == 100 && $2 >= 64 && $2 <= 127) &&
+        !($1 == 169 && $2 == 254) &&
+        !($1 == 172 && $2 >= 16 && $2 <= 31) &&
+        !($1 == 192 && $2 == 168) &&
+        $1 < 224 {
+            print
+        }
+    '
+}
+
 scan_all_high_freq() {
     echo ""
     echo -e "${YELLOW}正在统计访问 IP，优先提取日志行里的第一个公网 IP...${NC}"
@@ -169,10 +187,8 @@ scan_all_high_freq() {
         return 1
     fi
 
-    while IFS= read -r line
-    do
-        echo "$line" | extract_public_ips_from_line >> "$TMP_ALL"
-    done < <(grep -hE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$LOG_DIR"/*.log "$LOG_DIR"/*.error.log 2>/dev/null)
+    LC_ALL=C grep -hEo '([0-9]{1,3}\.){3}[0-9]{1,3}' "$LOG_DIR"/*.log "$LOG_DIR"/*.error.log 2>/dev/null | \
+        filter_public_ipv4 >> "$TMP_ALL"
 
     echo ""
     echo -e "${BLUE}访问次数最多的前 30 个公网 IP：${NC}"
@@ -195,10 +211,9 @@ scan_bad_paths() {
 
     PATTERN="(^|[[:space:]\"])(/\.env|/\.git|/wp-login\.php|/xmlrpc\.php|/phpinfo|/server-status|/vendor/phpunit|/config/parameters|/actuator|/boaform|/shell|/cmd|/eval|/login\.action)"
 
-    grep -hEi "$PATTERN" "$LOG_DIR"/*.log "$LOG_DIR"/*.error.log 2>/dev/null | while IFS= read -r line
-    do
-        echo "$line" | extract_public_ips_from_line >> "$TMP_BAD"
-    done
+    LC_ALL=C grep -hEi "$PATTERN" "$LOG_DIR"/*.log "$LOG_DIR"/*.error.log 2>/dev/null | \
+        grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | \
+        filter_public_ipv4 >> "$TMP_BAD"
 
     echo ""
     echo -e "${BLUE}可疑扫描 IP 排行：${NC}"
