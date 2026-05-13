@@ -7,6 +7,30 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAFE_IP_BAN="$SCRIPT_DIR/ip-ban-safe.sh"
+REMOTE_SAFE_IP_BAN_URL="${REMOTE_SAFE_IP_BAN_URL:-https://raw.githubusercontent.com/leaf008/linux-tools/main/ip-ban-safe.sh}"
+
+run_safe_ip_ban() {
+    local tmp_script
+
+    if [ -f "$SAFE_IP_BAN" ]; then
+        bash "$SAFE_IP_BAN"
+        return
+    fi
+
+    tmp_script="/tmp/linux-tools-ip-ban-safe.sh"
+
+    echo -e "${YELLOW}本地未找到 ip-ban-safe.sh，准备从 GitHub 下载安全版脚本。${NC}"
+    echo "来源：$REMOTE_SAFE_IP_BAN_URL"
+    echo ""
+
+    if ! curl -fsSL "$REMOTE_SAFE_IP_BAN_URL" -o "$tmp_script"; then
+        echo -e "${RED}下载失败，请确认 GitHub 仓库里已上传 ip-ban-safe.sh。${NC}"
+        return 1
+    fi
+
+    chmod +x "$tmp_script"
+    bash "$tmp_script"
+}
 
 run_remote() {
     local name="$1"
@@ -89,11 +113,7 @@ do
             read -r -p "按回车返回菜单..."
             ;;
         10)
-            if [ ! -f "$SAFE_IP_BAN" ]; then
-                echo -e "${RED}找不到安全版脚本：$SAFE_IP_BAN${NC}"
-            else
-                bash "$SAFE_IP_BAN"
-            fi
+            run_safe_ip_ban
             read -r -p "按回车返回菜单..."
             ;;
         11)
