@@ -102,6 +102,7 @@ do
     echo " 9. 网站故障修复"
     echo "10. 安全版 IP 审查/封禁（已改良）"
     echo "11. 网站实时监控告警"
+    echo "12. 网站可用性/防挂马守护"
     echo " 0. 退出"
     echo ""
 
@@ -150,6 +151,14 @@ do
             ;;
         11)
             run_remote "网站实时监控告警" "https://raw.githubusercontent.com/leaf008/linux-tools/main/site-monitor.sh"
+            read -r -p "按回车返回菜单..."
+            ;;
+        12)
+            if command -v site-guardian >/dev/null 2>&1; then
+                site-guardian menu
+            else
+                echo -e "${YELLOW}未安装 site-guardian，请先运行 install-lite.sh，或上传 site-guardian.sh 后执行：bash site-guardian.sh install${NC}"
+            fi
             read -r -p "按回车返回菜单..."
             ;;
         0)
