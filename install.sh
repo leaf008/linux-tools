@@ -7,7 +7,7 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAFE_IP_BAN="$SCRIPT_DIR/ip-ban-safe.sh"
-REMOTE_SAFE_IP_BAN_URL="${REMOTE_SAFE_IP_BAN_URL:-https://raw.githubusercontent.com/leaf008/linux-tools/main/ip-ban-safe.sh}"
+REMOTE_SAFE_IP_BAN_URL="${REMOTE_SAFE_IP_BAN_URL:-https://raw.githubusercontent.com/leaf008/linux-tools/main/ip-ban.sh}"
 
 run_safe_ip_ban() {
     local tmp_script
