@@ -32,6 +32,8 @@ load_config() {
     AUTO_RESTORE="${AUTO_RESTORE:-0}"
     AUTO_QUARANTINE="${AUTO_QUARANTINE:-0}"
     MAX_SCAN_FILE_SIZE_KB="${MAX_SCAN_FILE_SIZE_KB:-1024}"
+    BACKUP_KEEP="${BACKUP_KEEP:-3}"
+    SCAN_EXCLUDE_REGEX="${SCAN_EXCLUDE_REGEX:-/(core/extend/ueditor|third-party|node_modules|vendor|static/backup|runtime|cache|apps/admin/view/default/layui|jquery-[0-9]|jquery\\.min\\.js|layui\\.all\\.js|webuploader|codemirror|SyntaxHighlighter|video-js)/}"
 }
 
 save_default_config() {
@@ -42,6 +44,8 @@ REQUEST_TIMEOUT=15
 AUTO_RESTORE=0
 AUTO_QUARANTINE=0
 MAX_SCAN_FILE_SIZE_KB=1024
+BACKUP_KEEP=3
+SCAN_EXCLUDE_REGEX='/(core/extend/ueditor|third-party|node_modules|vendor|static/backup|runtime|cache|apps/admin/view/default/layui|jquery-[0-9]|jquery\.min\.js|layui\.all\.js|webuploader|codemirror|SyntaxHighlighter|video-js)/'
 
 # 可选通知配置：
 # NOTICE_WEBHOOK=""
@@ -97,6 +101,7 @@ usage() {
   site-guardian add URL ROOT         添加网站，例如 https://example.com /www/wwwroot/example.com
   site-guardian list                 查看监控网站
   site-guardian backup [URL]         建立干净备份
+  site-guardian prune                清理旧备份
   site-guardian run                  立即巡检全部网站
   site-guardian restore URL          从最近备份回滚网站文件
   site-guardian config               查看配置
@@ -125,8 +130,9 @@ menu() {
         echo " 4. 立即巡检"
         echo " 5. 建立干净备份"
         echo " 6. 从最近备份回滚"
-        echo " 7. 查看配置"
-        echo " 8. 删除定时任务"
+        echo " 7. 清理旧备份"
+        echo " 8. 查看配置"
+        echo " 9. 删除定时任务"
         echo " 0. 返回"
         echo ""
 
@@ -161,10 +167,14 @@ menu() {
                 read -r -p "按回车继续..."
                 ;;
             7)
-                show_config
+                prune_all_backups
                 read -r -p "按回车继续..."
                 ;;
             8)
+                show_config
+                read -r -p "按回车继续..."
+                ;;
+            9)
                 uninstall_self
                 read -r -p "按回车继续..."
                 ;;
@@ -257,16 +267,26 @@ web_injection_check() {
 scan_files() {
     local root="$1"
     local report="$2"
+    local high_report="${report%.txt}.high-risk.txt"
 
     load_config
 
     : > "$report"
+    : > "$high_report"
 
     find "$root" -type f \( -name '*.php' -o -name '*.phtml' -o -name '*.inc' -o -name '*.js' -o -name '*.html' -o -name '*.htm' \) \
         -size -"${MAX_SCAN_FILE_SIZE_KB}"k 2>/dev/null | while read -r file
     do
-        if LC_ALL=C grep -Eq '(eval[[:space:]]*\(|assert[[:space:]]*\(|system[[:space:]]*\(|shell_exec[[:space:]]*\(|passthru[[:space:]]*\(|base64_decode[[:space:]]*\(|gzinflate[[:space:]]*\(|str_rot13[[:space:]]*\(|preg_replace[[:space:]]*\(.*/e|fromCharCode|atob[[:space:]]*\(|document\.write[[:space:]]*\(|<iframe[^>]+src=)' "$file"; then
+        if echo "$file" | LC_ALL=C grep -Eq "$SCAN_EXCLUDE_REGEX"; then
+            continue
+        fi
+
+        if LC_ALL=C grep -Eq '(^|[^A-Za-z0-9_])(eval|assert|system|shell_exec|passthru|exec|popen|proc_open)[[:space:]]*\(|base64_decode[[:space:]]*\(|gzinflate[[:space:]]*\(|str_rot13[[:space:]]*\(|preg_replace[[:space:]]*\(.*/e|<iframe[^>]+src=' "$file"; then
             echo "$file" >> "$report"
+        fi
+
+        if LC_ALL=C grep -Eq '(eval[[:space:]]*\([[:space:]]*base64_decode|assert[[:space:]]*\([[:space:]]*\$_(POST|GET|REQUEST|COOKIE)|system[[:space:]]*\([[:space:]]*\$_(POST|GET|REQUEST|COOKIE)|shell_exec[[:space:]]*\([[:space:]]*\$_(POST|GET|REQUEST|COOKIE)|passthru[[:space:]]*\([[:space:]]*\$_(POST|GET|REQUEST|COOKIE)|move_uploaded_file[[:space:]]*\(|FilesMan|WSO|c99shell|r57shell)' "$file"; then
+            echo "$file" >> "$high_report"
         fi
     done
 
@@ -284,6 +304,46 @@ backup_site() {
     tar --exclude='runtime' --exclude='cache' --exclude='*.log' -czf "$archive" -C "$(dirname "$root")" "$(basename "$root")"
     echo "$archive" > "$STATE_DIR/${id}.last_backup"
     echo -e "${GREEN}备份完成：$archive${NC}"
+    prune_backups_for_site "$url"
+}
+
+prune_backups_for_site() {
+    local url="$1"
+    local id keep old_backup
+
+    load_config
+
+    id=$(site_id "$url")
+    keep="$BACKUP_KEEP"
+
+    if ! [[ "$keep" =~ ^[0-9]+$ ]] || [ "$keep" -lt 1 ]; then
+        keep=3
+    fi
+
+    find "$BACKUP_DIR" -maxdepth 1 -type f -name "${id}-*.tar.gz" ! -name "${id}-before-restore-*.tar.gz" -printf '%T@ %p\n' 2>/dev/null | \
+        sort -rn | awk -v keep="$keep" 'NR > keep {print $2}' | while read -r old_backup
+    do
+        [ -n "$old_backup" ] || continue
+        rm -f "$old_backup"
+        log_msg "删除旧备份：$old_backup"
+    done
+}
+
+prune_all_backups() {
+    local url root
+
+    if [ ! -s "$SITES_FILE" ]; then
+        echo "暂无监控网站"
+        return 0
+    fi
+
+    while IFS='|' read -r url root
+    do
+        [ -z "$url" ] && continue
+        prune_backups_for_site "$url"
+    done < "$SITES_FILE"
+
+    echo -e "${GREEN}备份清理完成。每个网站保留最近 ${BACKUP_KEEP:-3} 份。${NC}"
 }
 
 backup_command() {
@@ -461,6 +521,7 @@ show_config() {
     echo "检查间隔：$CHECK_INTERVAL 分钟"
     echo "自动回滚：$AUTO_RESTORE"
     echo "自动隔离：$AUTO_QUARANTINE"
+    echo "每站保留备份：$BACKUP_KEEP 份"
     echo "日志：$LOG_FILE"
 }
 
@@ -488,6 +549,9 @@ case "$cmd" in
         ;;
     config)
         show_config
+        ;;
+    prune)
+        prune_all_backups
         ;;
     menu)
         menu
