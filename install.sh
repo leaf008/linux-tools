@@ -7,10 +7,43 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAFE_IP_BAN="$SCRIPT_DIR/ip-ban-safe.sh"
-REMOTE_SAFE_IP_BAN_URL="${REMOTE_SAFE_IP_BAN_URL:-https://raw.githubusercontent.com/leaf008/linux-tools/main/ip-ban.sh}"
+LOCAL_SAFE_IP_BAN="/usr/local/bin/linux-tools-ip-ban"
+DEFAULT_BASE_URL="https://raw.githubusercontent.com/leaf008/linux-tools/main"
+REMOTE_SAFE_IP_BAN_URL="${REMOTE_SAFE_IP_BAN_URL:-}"
+LINUX_TOOLS_BASE_URLS="${LINUX_TOOLS_BASE_URLS:-$DEFAULT_BASE_URL}"
+
+download_from_sources() {
+    local file="$1"
+    local output="$2"
+    local base url
+
+    if [ -n "$REMOTE_SAFE_IP_BAN_URL" ] && [ "$file" = "ip-ban.sh" ]; then
+        echo "来源：$REMOTE_SAFE_IP_BAN_URL"
+        curl -fsSL --connect-timeout 8 --max-time 45 "$REMOTE_SAFE_IP_BAN_URL" -o "$output"
+        return $?
+    fi
+
+    for base in $LINUX_TOOLS_BASE_URLS
+    do
+        base="${base%/}"
+        url="$base/$file?t=$(date +%s)"
+        echo "尝试来源：$url"
+
+        if curl -fsSL --connect-timeout 8 --max-time 45 "$url" -o "$output"; then
+            return 0
+        fi
+    done
+
+    return 1
+}
 
 run_safe_ip_ban() {
     local tmp_script
+
+    if [ -f "$LOCAL_SAFE_IP_BAN" ]; then
+        bash "$LOCAL_SAFE_IP_BAN"
+        return
+    fi
 
     if [ -f "$SAFE_IP_BAN" ]; then
         bash "$SAFE_IP_BAN"
@@ -19,12 +52,11 @@ run_safe_ip_ban() {
 
     tmp_script="/tmp/linux-tools-ip-ban-safe.sh"
 
-    echo -e "${YELLOW}本地未找到 ip-ban-safe.sh，准备从 GitHub 下载安全版脚本。${NC}"
-    echo "来源：$REMOTE_SAFE_IP_BAN_URL"
+    echo -e "${YELLOW}本地未找到安全版 IP 脚本，准备从可用源下载。${NC}"
     echo ""
 
-    if ! curl -fsSL "$REMOTE_SAFE_IP_BAN_URL" -o "$tmp_script"; then
-        echo -e "${RED}下载失败，请确认 GitHub 仓库里已上传 ip-ban-safe.sh。${NC}"
+    if ! download_from_sources "ip-ban.sh" "$tmp_script"; then
+        echo -e "${RED}下载失败，请确认网络可访问，或配置 LINUX_TOOLS_BASE_URLS 镜像源。${NC}"
         return 1
     fi
 
